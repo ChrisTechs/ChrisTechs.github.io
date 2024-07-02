@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Days Until December 28, 2023</title>
+</head>
+<body>
+<h1>WSB</h1>
+<p id="wsb"></p>
+
+<script>
+    function daysUntil(targetDate) {
+        const now = new Date();
+        const utcNow = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
+        const utcPlus2Now = new Date(utcNow.setHours(utcNow.getHours() + 2));
+
+        const target = new Date(targetDate);
+        const utcTarget = new Date(target.toLocaleString('en-US', { timeZone: 'UTC' }));
+        const utcPlus2Target = new Date(utcTarget.setHours(utcTarget.getHours() + 2));
+
+        const diffTime = utcPlus2Target - utcPlus2Now;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        return Math.abs(diffDays);
+    }
+
+    const targetDate = '2023-12-28T00:00:00';
+    const daysCount = daysUntil(targetDate);
+    if ((daysCount & 1) === 0) {
+        document.getElementById('wsb').textContent = `C`;
+    } else {
+        document.getElementById('wsb').textContent = `S`;
+    }
+</script>
+</body>
+</html>
