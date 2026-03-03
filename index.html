@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>ClayJ - High Performance UI Layout Library for Java</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="ClayJ is a high performance, zero dependency, UI layout library for Java. It is a pure Java port of Clay, designed to be framework and backend agnostic.">
+    <script type="text/javascript" charset="utf-8" src="js/clayjwebsite.js"></script>
+</head>
+<body onload="main()">
+<div id="seo-content" style="display:none;">
+    <header>
+        <h1>ClayJ</h1>
+        <nav>
+            <ul>
+                <li>Introduction</li>
+                <li>Quick Start</li>
+                <li>Basic Web Renderer</li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section id="introduction">
+            <h2>ClayJ Documentation</h2>
+            <p>ClayJ is a high performance, zero dependency, UI layout library for Java. It is a pure Java port of Clay, designed to be framework and backend agnostic.</p>
+            <p>To showcase the usefulness of ClayJ this website uses ClayJ, TeaVM and a DOM based UI rendering approach.</p>
+
+            <h3>Links & Resources</h3>
+            <p>View the primary repository on GitHub: <a href="https://github.com/ChrisTechs/ClayJ">github.com/ChrisTechs/ClayJ</a></p>
+
+            <h3>Acknowledgments & Credits</h3>
+            <ul>
+                <li>Nic Barker: Creator of the original Clay C library.</li>
+                <li>Patricio Whittingslow: Author of Glay, a Go port of Clay.</li>
+            </ul>
+        </section>
+
+        <hr>
+
+        <section id="quick-start">
+            <h2>Quick Start Guide</h2>
+            <p>ClayJ calculates where UI elements should go based on Flexbox style rules. ClayJ does not draw pixels or interface directly with the OS meaning you must provide ClayJ inputs (screen size, mouse coordinates) and then draw the resulting array of rectangles and text.</p>
+
+            <h3>Initialization & Text Measurement</h3>
+            <p>Call ClayJ.initialize() once at startup. Then, you must provide a way for ClayJ to measure text sizes based on your specific rendering backend.</p>
+            <pre>
+import io.github.christechs.clayj.math.Dimensions;
+import static io.github.christechs.clayj.ClayJ.*;
+
+public void init() {
+    // Initialize with element capacity, text cache size, and default window dimensions
+    initialize(8192, 8192, new Dimensions(1920, 1080));
+
+    // Provide a callback so ClayJ knows exactly how wide fonts are
+    setMeasureTextFunction((text, start, len, config, outDimensions) -> {
+        float width = MyGraphicsEngine.measure(text.subSequence(start, start + len), config.fontSize);
+        float height = config.lineHeight > 0 ? config.lineHeight : config.fontSize;
+        outDimensions.set(width, height);
+    });
+
+    setErrorHandler(errorType -> System.err.println(errorType.getDefaultMessage()));
+}
+                </pre>
+
+            <h3>Input</h3>
+            <p>Every frame, tell ClayJ about window resizes, mouse positions, and scroll events. This allows it to calculate hover states, bounds clipping, and momentum scrolling.</p>
+            <pre>
+public void update(float deltaTime, float mouseX, float mouseY, boolean isMouseDown) {
+    setLayoutDimensions(windowWidth, windowHeight);
+
+    setPointerState(new Vector2(mouseX, mouseY), isMouseDown);
+
+    updateScrollContainers(true, new Vector2(0, 0), deltaTime);
+}
+                </pre>
+
+            <h3>Render Loop</h3>
+            <p>Declare your UI tree between beginLayout() and endLayout() using the builder API.</p>
+            <pre>
+public void drawFrame() {
+    beginLayout();
+
+    el(decl().id("Container").bg(30, 30, 35)
+       .layout(layout().sizing(SizingType.GROW, 0, SizingType.FIXED, 100)
+                       .align(LayoutAlignmentX.CENTER, LayoutAlignmentY.CENTER)), () -> {
+
+        text("Hello World!", txt().size(24).color(255, 255, 255));
+    });
+
+    // Results is an array of draw commands sorted by Z Index
+    LayoutResults results = endLayout();
+    myCustomRenderer.draw(results);
+}
+                </pre>
+
+            <h3>Interactivity</h3>
+            <p>You can make your UI interactive by checking if the pointer is currently hovering over a specific element ID during the layout loop.</p>
+        </section>
+
+        <hr>
+
+        <section id="renderer-guide">
+            <h2>Basic Web Renderer Guide</h2>
+            <p>ClayJ is backend agnostic. This website uses a better DOM based renderer but the simplest way to get started in a web environment is using the HTML5 Canvas API.</p>
+            <p style="color: orange;">Note: Canvas rendering is less efficient for standard web UIs. A DOM Element Pool approach is recommended for production web apps.</p>
+
+            <pre>
+import org.teavm.jso.JSBody;
+import org.teavm.jso.canvas.CanvasRenderingContext2D;
+import io.github.christechs.clayj.core.RenderCommand;
+import io.github.christechs.clayj.LayoutResults;
+
+public class CanvasRenderer {
+
+    // For newer browsers:
+    @JSBody(params = {"ctx", "x", "y", "w", "h", "r"}, script = "ctx.roundRect(x, y, w, h, r);")
+    private static native void nativeRoundRect(CanvasRenderingContext2D ctx, float x, float y, float w, float h, float r);
+
+    public static void draw(CanvasRenderingContext2D ctx, LayoutResults results) {
+        float scale = (float) org.teavm.jso.browser.Window.current().getDevicePixelRatio();
+        ctx.clearRect(0, 0, ctx.getCanvas().getWidth(), ctx.getCanvas().getHeight());
+
+        for (int i = 0; i < results.length(); i++) {
+            RenderCommand cmd = results.get(i);
+            var box = cmd.boundingBox;
+
+            switch (cmd.commandType) {
+                case RECTANGLE:
+                    var color = cmd.renderData.backgroundColor;
+                    ctx.setFillStyle("rgba(" + (int)color.r + "," + (int)color.g + "," + (int)color.b + "," + (color.a / 255f) + ")");
+                    ctx.beginPath();
+                    nativeRoundRect(ctx, box.x * scale, box.y * scale, box.width * scale, box.height * scale, cmd.renderData.cornerRadius.topLeft * scale);
+                    ctx.fill();
+                    break;
+
+                case TEXT:
+                    var textColor = cmd.renderData.textColor;
+                    ctx.setFillStyle("rgba(" + (int)textColor.r + "," + (int)textColor.g + "," + (int)textColor.b + "," + (textColor.a / 255f) + ")");
+                    ctx.setFont((cmd.renderData.fontSize * scale) + "px sans-serif");
+                    ctx.fillText(cmd.renderData.text.toString(), box.x * scale, (box.y + box.height / 2f) * scale);
+                    break;
+
+                case SCISSOR_START:
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(box.x * scale, box.y * scale, box.width * scale, box.height * scale);
+                    ctx.clip();
+                    break;
+
+                case SCISSOR_END:
+                    ctx.restore();
+                    break;
+            }
+        }
+    }
+}
+                </pre>
+        </section>
+    </main>
+</div>
+</body>
+</html>
